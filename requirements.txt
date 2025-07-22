@@ -1,0 +1,7 @@
+langchain
+chromadb
+sentence-transformers
+python-dotenv
+pdfplumber
+tqdm
+requests
