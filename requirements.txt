@@ -12,3 +12,7 @@ requests
 tiktoken
 openai
 huggingface-hub
+langchain
+tqdm
+requests
+pdfplumber
