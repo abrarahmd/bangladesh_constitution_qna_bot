@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <link rel="stylesheet" href="../public/chatbot_style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <header class="chat-header">
+            <div class="header-content">
+                <div class="bot-info">
+                    <div class="bot-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="bot-details">
+                        <h1>AI Assistant</h1>
+                        <span class="status-indicator">
+                            <i class="fas fa-circle"></i>
+                            Online
+                        </span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="action-btn" onclick="clearChat()">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <div class="welcome-content">
+                    <i class="fas fa-sparkles"></i>
+                    <h2>Welcome to AI Assistant</h2>
+                    <p>I'm here to help you with any questions or tasks. What can I assist you with today?</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <div class="message bot-message">
+                <div class="message-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-container">
+            <div class="input-wrapper">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Type your message here..." 
+                    rows="1"
+                    maxlength="2000"
+                ></textarea>
+                <button class="send-button" id="sendButton" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="input-footer">
+                <span class="char-count" id="charCount">0 / 2000</span>
+                <span class="shortcuts">Press Enter to send, Shift+Enter for new line</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let messageCount = 0;
+
+        // Auto-resize textarea
+        const messageInput = document.getElementById('messageInput');
+        const charCount = document.getElementById('charCount');
+
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            
+            // Update character count
+            charCount.textContent = `${this.value.length} / 2000`;
+        });
+
+        // Handle Enter key
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Add user message (no animation)
+            addMessage(message, 'user', false);
+            
+            // Clear input
+            input.value = '';
+            input.style.height = 'auto';
+            charCount.textContent = '0 / 2000';
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                hideTypingIndicator();
+                
+                if (data.status === 'success') {
+                    addMessage(data.response, 'bot', true); // Enable animation for bot
+                } else {
+                    addMessage('Sorry, I encountered an error: ' + data.error, 'bot', false);
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage('Sorry, I cannot connect to the server right now.', 'bot', false);
+            }
+        }
+
+        function addMessage(content, sender, animate = false) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            
+            // Format content to preserve line breaks and structure
+            const formattedContent = formatMessage(content);
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">
+                    <i class="fas fa-${sender === 'user' ? 'user' : 'robot'}"></i>
+                </div>
+                <div class="message-content">
+                    <div class="message-text" id="msg-${messageCount}"></div>
+                    <div class="message-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Add typewriter effect for bot messages
+            if (animate && sender === 'bot') {
+                typeWriter(formattedContent, `msg-${messageCount}`, 10);
+            } else {
+                document.getElementById(`msg-${messageCount}`).innerHTML = formattedContent;
+            }
+            
+            messageCount++;
+        }
+
+        function formatMessage(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/(\d+\.)/g, '<strong>$1</strong>');
+        }
+
+        function typeWriter(text, elementId, speed = 50) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            const words = text.split(' ');
+            let wordIndex = 0;
+            
+            function addNextWord() {
+                if (wordIndex < words.length) {
+                    // Add word with a space (except for first word)
+                    const currentText = element.innerHTML;
+                    const newWord = wordIndex === 0 ? words[wordIndex] : ' ' + words[wordIndex];
+                    element.innerHTML = currentText + newWord;
+                    
+                    // Scroll to bottom as text appears
+                    const messagesContainer = document.getElementById('chatMessages');
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    
+                    wordIndex++;
+                    setTimeout(addNextWord, speed);
+                }
+            }
+            
+            addNextWord();
+        }
+
+        function showTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'block';
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        function clearChat() {
+            if (confirm('Are you sure you want to clear all messages?')) {
+                const messagesContainer = document.getElementById('chatMessages');
+                messagesContainer.innerHTML = `
+                    <div class="welcome-message">
+                        <div class="welcome-content">
+                            <i class="fas fa-sparkles"></i>
+                            <h2>Welcome to AI Assistant</h2>
+                            <p>I'm here to help you with any questions or tasks. What can I assist you with today?</p>
+                        </div>
+                    </div>
+                `;
+                messageCount = 0;
+            }
+        }
+
+        function toggleSettings() {
+            alert('Settings panel would open here. Implement as needed for your application.');
+        }
+
+        // Focus input on load
+        window.addEventListener('load', () => {
+            messageInput.focus();
+        });
+    </script>
+</body>
+</html>
